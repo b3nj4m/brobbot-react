@@ -127,6 +127,8 @@ module.exports = function(robot) {
   function responseShouldBeThrottled(searchString) {
     return robot.brain.get(responseUsageKey(searchString)).then(function(lastUsed) {
       return lastUsed ? moment.utc(lastUsed).add(THROTTLE_EXPIRATION, 'seconds').isAfter() : false;
+    }, function() {
+      return false;
     });
   }
 
