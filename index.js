@@ -2,7 +2,7 @@
 //   Train brobbot to react to certain terms.
 //
 // Dependencies:
-//   underscore: ~1.7.0
+//   lodash: ~2.4.1
 //   natural: ~0.1.28
 //   moment: ~2.8.3
 //   q: ~1.1.2
