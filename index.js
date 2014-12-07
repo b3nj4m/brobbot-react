@@ -142,7 +142,7 @@ module.exports = function(robot) {
         if (count > 0) {
           if (size > 0) {
             //generate ngrams for sizes for which there are terms to react to
-            promises = Q.all(_.map(ngrams(stems, size), function(ngram) {
+            promises = _.map(ngrams(stems, size), function(ngram) {
               ngramString = ngram.join(',');
 
               return robot.brain.exists(messageKey(ngramString)).then(function(exists) {
@@ -160,7 +160,7 @@ module.exports = function(robot) {
                   return null;
                 }
               });
-            }));
+            });
 
             return Q.all(promises).then(function(responses) {
               return _.compact(responses);
@@ -183,7 +183,7 @@ module.exports = function(robot) {
         }
 
         return null;
-      }));
+      });
 
       return Q.all(promises).then(function(responseGroups) {
         return randomItem(_.flatten(_.compact(responseGroups)));
