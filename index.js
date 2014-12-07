@@ -94,7 +94,7 @@ module.exports = function(robot) {
     };
 
     return robot.brain.sadd(messageKey(stemsString), item)
-      .then(incrementTermSize.bind(response))
+      .then(incrementTermSize.bind(this, item))
       .then(ensureStoreSize);
   }
 
@@ -192,7 +192,7 @@ module.exports = function(robot) {
   }
 
   function del(response) {
-    return robot.brain.srem(messageKey(response.stemsString), response).then(decrementTermSize.bind(response));
+    return robot.brain.srem(messageKey(response.stemsString), response).then(decrementTermSize.bind(this, response));
   }
 
   function responseUsed(response) {
@@ -239,10 +239,10 @@ module.exports = function(robot) {
       }
     });
 
-    robot.hear(/.*/, function(msg) {
+    robot.hear(/.+/, function(msg) {
       var text = msg.message.text;
 
-      if (!msg.addressedToBrobbot) {
+      if (!msg.isAddressedToBrobbot) {
         return get(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
