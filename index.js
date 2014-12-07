@@ -23,6 +23,7 @@
 var _ = require('lodash');
 var natural = require('natural');
 var moment = require('moment');
+var Q = require('q');
 
 var stemmer = natural.PorterStemmer;
 var ngrams = natural.NGrams.ngrams;
