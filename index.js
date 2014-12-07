@@ -113,7 +113,7 @@ module.exports = function(robot) {
   }
 
   function getAllTermSizes() {
-    robot.brain.hgetall(TERM_SIZES_TABLE);
+    return robot.brain.hgetall(TERM_SIZES_TABLE);
   }
 
   function messageKey(key) {
