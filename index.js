@@ -65,20 +65,20 @@ function lastResponseNotFoundMessage() {
 
 module.exports = function(robot) {
   function incrementTermSize(response) {
-    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), 1);
+    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), 1).then(_.constant(response));
   }
 
   function decrementTermSize(response) {
-    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), -1);
+    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), -1).then(_.constant(response));
   }
 
   //TODO
   function ensureStoreSize() {
-    return Q();
+    return Q.apply(this, arguments);
   }
 
   function computeTermSizes() {
-    return Q();
+    return Q.apply(this, arguments);
   }
 
   function add(term, response) {
