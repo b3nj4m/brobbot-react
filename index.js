@@ -47,6 +47,23 @@ function randomItem(list) {
   return list[_.random(list.length - 1)];
 }
 
+function randomItems(list, count) {
+  if (typeof count === 'undefined') {
+    return list;
+  }
+  else if (count === 1) {
+    return randomItem(list);
+  }
+
+  var result = [];
+  var copy = list.slice();
+  for (var i = 0; i < count; i++) {
+    result.push(copy.splice(_.random(copy.length - 1), 1)[0]);
+  }
+
+  return result;
+}
+
 function responseToString(response) {
   return responseTmpl(response);
 }
@@ -72,13 +89,30 @@ module.exports = function(robot) {
     return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), -1).then(_.constant(response));
   }
 
-  //TODO
   function ensureStoreSize() {
-    return Q.apply(this, arguments);
-  }
+    var result = Q.apply(this, arguments);
 
-  function computeTermSizes() {
-    return Q.apply(this, arguments);
+    var getKeys = robot.brain.keys(messageKey('*'));
+
+    var computeSize = getKeys.then(function(keys) {
+      return Q.all(_.map(keys, function(key) {
+        return robot.brain.scard(key);
+      })).then(function(sizes) {
+        return _.reduce(sizes, function(memo, value) {
+          return memo + value;
+        }, 0);
+      });
+    });
+
+    return Q.all([computeSize, getKeys]).spread(function(size, keys) {
+      if (size > STORE_SIZE) {
+        return Q.all(_.times(size - STORE_SIZE, function() {
+          //TODO set may run out of items :/
+          var key = keys[_.random(keys.length - 1)];
+          return robot.brain.spop(key);
+        }));
+      }
+    });
   }
 
   function add(term, response) {
