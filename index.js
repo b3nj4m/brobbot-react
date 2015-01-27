@@ -106,11 +106,24 @@ module.exports = function(robot) {
 
     return Q.all([computeSize, getKeys]).spread(function(size, keys) {
       if (size > STORE_SIZE) {
-        return Q.all(_.times(size - STORE_SIZE, function() {
-          //TODO set may run out of items :/
-          var key = keys[_.random(keys.length - 1)];
-          return robot.brain.spop(key);
-        }));
+        Q.all(_.map(keys, function(key) {
+          return robot.brain.scard(key);
+        })).then(function(sizes) {
+          return Q.all(_.times(size - STORE_SIZE, function() {
+            if (sizes.length !== 0) {
+              var idx = _.random(keys.length - 1);
+              var key = keys[idx];
+
+              sizes[idx]--;
+
+              if (sizes[idx] === 0) {
+                sizes = sizes.splice(idx, 1);
+              }
+
+              return robot.brain.spop(key);
+            }
+          }));
+        });
       }
     });
   }
