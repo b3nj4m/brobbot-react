@@ -12,11 +12,6 @@
 //   BROBBOT_REACT_THROTTLE_EXPIRATION=N - Throttle responses to the same terms for N seconds (default 300).
 //   BROBBOT_REACT_INIT_TIMEOUT=N - wait for N milliseconds for brain data to load from redis. (default 10000)
 //
-// Commands:
-//   brobbot react <term> <response> - tell brobbot to react with <response> when it hears <term> (single word)
-//   brobbot react "<term>" <response> - tell brobbot to react with <response> when it hears <term> (multiple words)
-//   brobbot ignore that - tell brobbot to forget the last <term> <response> pair that was uttered.
-//
 // Author:
 //   b3nj4m
 
@@ -254,6 +249,10 @@ module.exports = function(robot) {
   }
 
   function start(robot) {
+    robot.helpCommand('brobbot react <term> <response>', 'tell brobbot to react with <response> when it hears <term> (single word)');
+    robot.helpCommand('brobbot react "<term>" <response>', 'tell brobbot to react with <response> when it hears <term> (multiple words)');
+    robot.helpCommand('brobbot ignore that', 'tell brobbot to forget the last <term> <response> pair that was uttered.');
+
     robot.logger.info('starting brobbot react...');
 
     robot.respond(/react (([^\s]*)|"([^"]*)") (.*)/i, function(msg) {
