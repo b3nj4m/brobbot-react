@@ -87,7 +87,7 @@ module.exports = function(robot) {
   function ensureStoreSize() {
     var result = Q.apply(this, arguments);
 
-    var getKeys = robot.brain.keys(messageKey('*'));
+    var getKeys = robot.brain.keys(messageKey(''));
 
     var computeSize = getKeys.then(function(keys) {
       return Q.all(_.map(keys, function(key) {
@@ -101,7 +101,7 @@ module.exports = function(robot) {
 
     return Q.all([computeSize, getKeys]).spread(function(size, keys) {
       if (size > STORE_SIZE) {
-        Q.all(_.map(keys, function(key) {
+        return Q.all(_.map(keys, function(key) {
           return robot.brain.scard(key);
         })).then(function(sizes) {
           return Q.all(_.times(size - STORE_SIZE, function() {
@@ -120,7 +120,7 @@ module.exports = function(robot) {
           }));
         });
       }
-    });
+    }).then(_.constant(result));
   }
 
   function add(term, response) {
@@ -245,7 +245,7 @@ module.exports = function(robot) {
   }
 
   function init(robot) {
-    return ensureStoreSize().then(computeTermSizes);
+    return ensureStoreSize();
   }
 
   function start(robot) {
@@ -259,7 +259,7 @@ module.exports = function(robot) {
       var term = msg.match[2] || msg.match[3];
       var response = msg.match[4];
 
-      return add(term, response).then(function (responseObj) {
+      return add(term, response).then(function(responseObj) {
         msg.send(successMessage(responseObj));
       });
     });
