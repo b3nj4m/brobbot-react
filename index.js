@@ -290,7 +290,7 @@ module.exports = function(robot) {
     robot.hear(/.+/, function(msg) {
       var text = msg.message.text;
 
-      if (!msg.isAddressedToBrobbot) {
+      if (!msg.message.isAddressedToBrobbot) {
         return get(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
