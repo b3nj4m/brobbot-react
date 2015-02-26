@@ -249,9 +249,9 @@ module.exports = function(robot) {
   }
 
   function start(robot) {
-    robot.helpCommand('brobbot react <term> <response>', 'tell brobbot to react with <response> when it hears <term> (single word)');
-    robot.helpCommand('brobbot react "<term>" <response>', 'tell brobbot to react with <response> when it hears <term> (multiple words)');
-    robot.helpCommand('brobbot ignore that', 'tell brobbot to forget the last <term> <response> pair that was uttered.');
+    robot.helpCommand('brobbot react `term` `response`', 'tell brobbot to react with `response` when it hears `term` (single word)');
+    robot.helpCommand('brobbot react "`term`" `response`', 'tell brobbot to react with `response` when it hears `term` (multiple words)');
+    robot.helpCommand('brobbot ignore that', 'tell brobbot to forget the last `term` `response` pair that was uttered.');
 
     robot.logger.info('starting brobbot react...');
 
