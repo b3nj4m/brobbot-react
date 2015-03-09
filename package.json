@@ -1,6 +1,6 @@
 {
   "name": "brobbot-react",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "A module to train brobbot to react to certain terms",
   "main": "index.js",
   "scripts": {
@@ -19,7 +19,7 @@
     "url": "https://github.com/b3nj4m/brobbot-react/issues"
   },
   "peerDependencies": {
-    "brobbot": "4.x"
+    "brobbot": "4.x - 5.x"
   },
   "dependencies": {
     "lodash": "~2.4.1",
