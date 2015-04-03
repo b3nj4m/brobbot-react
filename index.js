@@ -187,7 +187,7 @@ module.exports = function(robot) {
           if (size > 0) {
             //generate ngrams for sizes for which there are terms to react to
             promises = _.map(ngrams(stems, size), function(ngram) {
-              ngramString = ngram.join(',');
+              var ngramString = ngram.join(',');
 
               return robot.brain.exists(messageKey(ngramString)).then(function(exists) {
                 if (exists) {
