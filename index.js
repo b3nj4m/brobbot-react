@@ -34,6 +34,7 @@ var TERM_SIZES_TABLE = 'term-sizes';
 var lastUsedResponse = null;
 
 var successTmpl = _.template('Reacting to <%= term %> with <%= response %>');
+var failureTmpl = _.template('"<%= term %>" is too trivial.');
 var responseTmpl = _.template('<%= response %>');
 var ignoredTmpl = _.template('No longer reacting to <%= term %> with <%= response %>');
 var lastResponseNotFoundTmpl = _.template('Wat.');
@@ -67,12 +68,20 @@ function successMessage(response) {
   return successTmpl(response);
 }
 
+function failureMessage(term) {
+  return failureTmpl({term: term});
+}
+
 function ignoredMessage(response) {
   return ignoredTmpl(response);
 }
 
 function lastResponseNotFoundMessage() {
   return lastResponseNotFoundTmpl();
+}
+
+function looksLikeWords(str) {
+  return /^[\w\s]+$/i.test(str);
 }
 
 module.exports = function(robot) {
@@ -125,7 +134,13 @@ module.exports = function(robot) {
 
   function add(term, response) {
     //only use stemmer for things that look like words
-    var stems = /^[\w\s]+$/i.test(term) ? stemmer.tokenizeAndStem(term) : [];
+    var isWords = looksLikeWords(term);
+    var stems = isWords ? stemmer.tokenizeAndStem(term) : [];
+
+    if (isWords && stems.length === 0) {
+      return Q.reject(term);
+    }
+
     var stemsString = stems.join(',') || term.toLowerCase();
 
     var item = {
@@ -261,10 +276,12 @@ module.exports = function(robot) {
 
       return add(term, response).then(function(responseObj) {
         msg.send(successMessage(responseObj));
+      }).fail(function(term) {
+        msg.send(failureMessage(term));
       });
     });
 
-    robot.respond(/ignore that/i, function(msg) {
+    robot.respond(/^ignore that/i, function(msg) {
       var ignored = false;
 
       var done = function(ignored) {
