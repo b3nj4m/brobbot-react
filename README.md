@@ -32,14 +32,6 @@ Throttle responses to the same terms for `N` seconds (default 300).
 BROBBOT_REACT_THROTTLE_EXPIRATION=N
 ```
 
-#### Initialization timeout
-
-Wait for N milliseconds for brobbot to initialize and load brain data from redis. (default 10000)
-
-```
-BROBBOT_REACT_INIT_TIMEOUT=N
-```
-
 ### Commands
 
 #### React (single-word term)
@@ -56,6 +48,14 @@ Tell brobbot to react with `<response>` when it hears `<term>`.
 
 ```
 brobbot react "<term>" <response>
+```
+
+#### What was that
+
+Ask brobbot about the last `<response>` uttered.
+
+```
+brobbot what was that
 ```
 
 #### Ignore
