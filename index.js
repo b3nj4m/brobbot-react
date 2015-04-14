@@ -228,7 +228,7 @@ module.exports = function(robot) {
           //test exact matches
           else if (size === 0) {
             return robot.brain.keys(messageKey('*')).then(function(keys) {
-              keys = _.filter(keys, function(keys) {
+              keys = _.filter(keys, function(key) {
                 return text.indexOf(key) > -1;
               });
 
