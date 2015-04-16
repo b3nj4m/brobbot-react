@@ -24,10 +24,15 @@ var ngrams = natural.NGrams.ngrams;
 
 var STORE_SIZE = process.env.BROBBOT_REACT_STORE_SIZE ? parseInt(process.env.BROBBOT_REACT_STORE_SIZE) : 200;
 var THROTTLE_EXPIRATION = process.env.BROBBOT_REACT_THROTTLE_EXPIRATION ? parseInt(process.env.BROBBOT_REACT_THROTTLE_EXPIRATION) : 300;
+var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseInt(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 1;
 
 var MESSAGE_TABLE = 'messages';
 var RESPONSE_USAGE_TABLE = 'response-usages';
 var TERM_SIZES_TABLE = 'term-sizes';
+var TERM_USAGE_TABLE = 'term-usage';
+var MESSAGE_COUNT_KEY = 'message-count';
+
+var messageTableRegex = new RegExp('^' + MESSAGE_TABLE + ':');
 
 var lastUsedResponse = null;
 
@@ -176,6 +181,10 @@ module.exports = function(robot) {
     return robot.brain.hgetall(TERM_SIZES_TABLE);
   }
 
+  function termUsageKey(term) {
+    return TERM_USAGE_TABLE + ':' + term;
+  }
+
   function messageKey(key) {
     return MESSAGE_TABLE + ':' + key;
   }
@@ -186,13 +195,42 @@ module.exports = function(robot) {
 
   function responseShouldBeThrottled(searchString) {
     return robot.brain.get(responseUsageKey(searchString)).then(function(lastUsed) {
-      return lastUsed ? moment.utc(lastUsed).add(THROTTLE_EXPIRATION, 'seconds').isAfter() : false;
+      var timeoutExpired = lastUsed ? moment.utc(lastUsed).add(THROTTLE_EXPIRATION, 'seconds').isBefore() : true;
+      if (!timeoutExpired) {
+        return false;
+      }
+      else {
+        return Q.all([
+          robot.brain.get(termUsageKey(searchString)),
+          robot.brain.get(MESSAGE_COUNT_KEY)
+        ]).spread(function(termCount, totalCount) {
+          //TODO maths
+          return;
+        });
+      }
     }, function() {
       return false;
     });
   }
 
   function get(text) {
+    return search(text).then(function(results) {
+      return Q.all(_.compact(_.map(results, function(ngramString) {
+        return responseShouldBeThrottled(ngramString).then(function(shouldBeThrottled) {
+          if (shouldBeThrottled) {
+            return null;
+          }
+          else {
+           return robot.brain.srandmember(messageKey(ngramString));
+          }
+        });
+      }))).then(function(responseGroups) {
+        return randomItem(responseGroups);
+      });
+    });
+  }
+
+  function search(text) {
     text = text.toLowerCase();
     var stems = stemmer.tokenizeAndStem(text);
 
@@ -209,14 +247,7 @@ module.exports = function(robot) {
 
               return robot.brain.exists(messageKey(ngramString)).then(function(exists) {
                 if (exists) {
-                  return responseShouldBeThrottled(ngramString).then(function(shouldBeThrottled) {
-                    if (shouldBeThrottled) {
-                      return null;
-                    }
-                    else {
-                     return robot.brain.srandmember(messageKey(ngramString));
-                    }
-                  });
+                  return ngramString;
                 }
                 else {
                   return null;
@@ -231,15 +262,10 @@ module.exports = function(robot) {
           //test exact matches
           else if (size === 0) {
             return robot.brain.keys(messageKey('*')).then(function(keys) {
-              keys = _.filter(keys, function(key) {
-                return text.indexOf(key) > -1;
-              });
-
-              promises = _.map(keys, function(key) {
-                return robot.brain.srandmember(key);
-              });
-
-              return Q.all(promises);
+              return _.compact(_.map(keys, function(key) {
+                var termString = key.replace(messageTableRegex, '');
+                return text.indexOf(termString) > -1;
+              }));
             });
           }
         }
@@ -248,7 +274,7 @@ module.exports = function(robot) {
       });
 
       return Q.all(promises).then(function(responseGroups) {
-        return randomItem(_.flatten(_.compact(responseGroups)));
+        return _.flatten(_.compact(responseGroups));
       });
     });
   }
@@ -262,6 +288,22 @@ module.exports = function(robot) {
     return robot.brain.set(responseUsageKey(response.stemsString), moment.utc().toISOString());
   }
 
+  function incrementMessageCount() {
+    //increment the total message count
+    return robot.brain.incrby(MESSAGE_COUNT_KEY, 1);
+  }
+
+  function incrementTermCounts() {
+    //increment the count for relevant terms
+    //TODO only count terms for which there are responses?
+    //TODO keep set of terms with responses?
+    return search(text).then(function(termStrings) {
+      return Q.all(_.map(termStrings, function(term) {
+        return robot.brain.incrby(termUsageKey(term), 1);
+      });
+    });
+  }
+
   function init(robot) {
     return ensureStoreSize();
   }
@@ -271,8 +313,6 @@ module.exports = function(robot) {
     robot.helpCommand('brobbot react "`term`" `response`', 'tell brobbot to react with `response` when it hears `term` (multiple words)');
     robot.helpCommand('brobbot what was that', 'ask brobbot about the last `response` uttered.');
     robot.helpCommand('brobbot ignore that', 'tell brobbot to forget the last `term` `response` pair that was uttered.');
-
-    robot.logger.info('starting brobbot react...');
 
     robot.respond(/react (([^\s]*)|"([^"]*)") (.*)/i, function(msg) {
       var term = msg.match[2] || msg.match[3];
@@ -321,13 +361,14 @@ module.exports = function(robot) {
       var text = msg.message.text;
 
       if (!msg.message.isAddressedToBrobbot) {
-        return get(text).then(function(response) {
+        var getResponse = get(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
-            lastUsedResponse = response;
-            responseUsed(response);
+            return responseUsed(response);
           }
         });
+
+        return Q.all([getResponse, incrementMessageCount(), incrementTermCounts(text)]);
       }
     });
   }
