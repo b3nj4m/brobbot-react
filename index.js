@@ -286,10 +286,10 @@ module.exports = function(robot) {
     return robot.brain.incrby(MESSAGE_COUNT_KEY, 1);
   }
 
-  function incrementTermCounts(termStrings) {
+  function incrementTermCounts(results) {
     //increment the count for terms which have responses
-    return Q.all(_.map(termStrings, function(term) {
-      return robot.brain.incrby(termUsageKey(term), 1);
+    return Q.all(_.map(results, function(result) {
+      return robot.brain.incrby(termUsageKey(result.term), 1);
     }));
   }
 
@@ -350,14 +350,14 @@ module.exports = function(robot) {
       var text = msg.message.text;
 
       if (!msg.message.isAddressedToBrobbot) {
-        var getResponse = getResponse(text).then(function(response) {
+        var get = getResponse(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
             return responseUsed(response);
           }
         });
 
-        return Q.all([getResponse, incrementMessageCount()]);
+        return Q.all([get, incrementMessageCount()]);
       }
     });
   }
