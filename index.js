@@ -27,12 +27,13 @@ var THROTTLE_EXPIRATION = process.env.BROBBOT_REACT_THROTTLE_EXPIRATION ? parseI
 var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseFloat(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 2;
 
 var MESSAGE_TABLE = 'messages';
+var NO_STEM_MESSAGE_TABLE = 'no-stem-messages';
 var RESPONSE_USAGE_TABLE = 'response-usages';
-var TERM_SIZES_TABLE = 'term-sizes';
 var TERM_USAGE_TABLE = 'term-usage';
 var MESSAGE_COUNT_KEY = 'message-count';
 
 var messageTableRegex = new RegExp('^' + MESSAGE_TABLE + ':');
+var noStemMessageTableRegex = new RegExp('^' + NO_STEM_MESSAGE_TABLE + ':');
 
 var lastUsedResponse = null;
 
@@ -89,21 +90,11 @@ function lastResponseNotFoundMessage() {
 }
 
 function looksLikeWords(str) {
-  return /^[\w\s]+$/i.test(str);
+  return /\b[\w]{2,}\b/i.test(str);
 }
 
 module.exports = function(robot) {
-  function incrementTermSize(response) {
-    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), 1).then(_.constant(response));
-  }
-
-  function decrementTermSize(response) {
-    return robot.brain.hincrby(TERM_SIZES_TABLE, response.stems.length.toString(), -1).then(_.constant(response));
-  }
-
   function ensureStoreSize() {
-    var result = Q.apply(this, arguments);
-
     var getKeys = robot.brain.keys(messageKey(''));
 
     var computeSize = getKeys.then(function(keys) {
@@ -137,7 +128,7 @@ module.exports = function(robot) {
           }));
         });
       }
-    }).then(_.constant(result));
+    });
   }
 
   function add(term, response) {
@@ -158,9 +149,11 @@ module.exports = function(robot) {
       response: response
     };
 
-    return robot.brain.sadd(messageKey(stemsString), item)
-      .then(incrementTermSize.bind(this, item))
-      .then(ensureStoreSize);
+    var key = isWords ? messageKey(stemsString) : noStemMessageKey(stemsString);
+
+    return robot.brain.sadd(key, item).then(ensureStoreSize).then(function() {
+      return item;
+    });
   }
 
   function getAllResponses() {
@@ -177,16 +170,16 @@ module.exports = function(robot) {
     });
   }
 
-  function getAllTermSizes() {
-    return robot.brain.hgetall(TERM_SIZES_TABLE);
-  }
-
   function termUsageKey(term) {
     return TERM_USAGE_TABLE + ':' + term;
   }
 
   function messageKey(key) {
     return MESSAGE_TABLE + ':' + key;
+  }
+
+  function noStemMessageKey(key) {
+    return NO_STEM_MESSAGE_TABLE + ':' + key;
   }
 
   function responseUsageKey(string) {
@@ -206,19 +199,23 @@ module.exports = function(robot) {
     });
   }
 
-  function get(text) {
+  function getResponse(text) {
     return search(text).then(function(results) {
-      return Q.all(_.compact(_.map(results, function(ngramString) {
-        return responseShouldBeThrottled(ngramString).then(function(shouldBeThrottled) {
+      var responses = Q.all(_.compact(_.map(results, function(result) {
+        return responseShouldBeThrottled(result.term).then(function(shouldBeThrottled) {
           if (shouldBeThrottled) {
             return null;
           }
           else {
-           return robot.brain.srandmember(messageKey(ngramString));
+           return robot.brain.srandmember(result.key);
           }
         });
       }))).then(function(responseGroups) {
         return randomItem(responseGroups);
+      });
+
+      return Q.all([responses, incrementTermCounts(results)]).then(function(results) {
+        return results[0];
       });
     });
   }
@@ -226,54 +223,57 @@ module.exports = function(robot) {
   function search(text) {
     text = text.toLowerCase();
     var stems = stemmer.tokenizeAndStem(text);
+    var stemPromises;
 
-    return getAllTermSizes().then(function(termSizes) {
-      var promises = _.map(termSizes, function(count, size) {
-        var promises;
-        size = parseInt(size);
+    if (looksLikeWords(text)) {
+      stemPromises = _.flatten(_.map(stems, function(stem, idx) {
+        return robot.brain.keys(messageKey(stem)).then(function(keys) {
+          keys = _.filter(keys, function(key, idx2) {
+            var keyStems = key.replace(messageTableRegex, '').split(',');
 
-        if (count > 0) {
-          if (size > 0) {
-            //generate ngrams for sizes for which there are terms to react to
-            promises = _.map(ngrams(stems, size), function(ngram) {
-              var ngramString = ngram.join(',');
+            //not enough words left to trigger this term
+            if (keyStems.length > stems.length - idx) {
+              return false;
+            }
 
-              return robot.brain.exists(messageKey(ngramString)).then(function(exists) {
-                if (exists) {
-                  return ngramString;
-                }
-                else {
-                  return null;
-                }
-              });
-            });
+            for (var i = 0; i < keyStems.length; i++) {
+              if (stems[idx + i] !== keyStems[i]) {
+                return false;
+              }
+            }
 
-            return Q.all(promises).then(function(responses) {
-              return _.compact(responses);
-            });
-          }
-          //test exact matches
-          else if (size === 0) {
-            return robot.brain.keys(messageKey('*')).then(function(keys) {
-              return _.compact(_.map(keys, function(key) {
-                var termString = key.replace(messageTableRegex, '');
-                return text.indexOf(termString) > -1;
-              }));
-            });
-          }
-        }
+            return true;
+          });
 
-        return null;
+          return _.map(keys, function(key) {
+            return {term: key.replace(messageTableRegex, ''), key: key};
+          });
+        });
+      }), true);
+    }
+    else {
+      stemPromises = Q.resolve([]);
+    }
+
+    //search non-word terms using substring match
+    var noStemPromise = robot.brain.keys(noStemMessageKey('')).then(function(keys) {
+      keys = _.filter(keys, function(key) {
+        var termString = key.replace(noStemMessageTableRegex, '');
+        return text.indexOf(termString) > -1;
       });
 
-      return Q.all(promises).then(function(responseGroups) {
-        return _.flatten(_.compact(responseGroups));
+      return _.map(keys, function(key) {
+        return {term: key.replace(noStemMessageTableRegex, ''), key: key};
       });
+    });
+
+    return Q.all([noStemPromise].concat(stemPromises)).then(function(results) {
+      return results[0].concat.apply(results[0], _.rest(results));
     });
   }
 
   function del(response) {
-    return robot.brain.srem(messageKey(response.stemsString), response).then(decrementTermSize.bind(this, response));
+    return robot.brain.srem(messageKey(response.stemsString), response);
   }
 
   function responseUsed(response) {
@@ -286,13 +286,11 @@ module.exports = function(robot) {
     return robot.brain.incrby(MESSAGE_COUNT_KEY, 1);
   }
 
-  function incrementTermCounts(text) {
+  function incrementTermCounts(termStrings) {
     //increment the count for terms which have responses
-    return search(text).then(function(termStrings) {
-      return Q.all(_.map(termStrings, function(term) {
-        return robot.brain.incrby(termUsageKey(term), 1);
-      }));
-    });
+    return Q.all(_.map(termStrings, function(term) {
+      return robot.brain.incrby(termUsageKey(term), 1);
+    }));
   }
 
   function init(robot) {
@@ -305,13 +303,13 @@ module.exports = function(robot) {
     robot.helpCommand('brobbot what was that', 'ask brobbot about the last `response` uttered.');
     robot.helpCommand('brobbot ignore that', 'tell brobbot to forget the last `term` `response` pair that was uttered.');
 
-    robot.respond(/react (([^\s]*)|"([^"]*)") (.*)/i, function(msg) {
+    robot.respond(/react ("([^"]*)"|([^\s]*)) (.*)/i, function(msg) {
       var term = msg.match[2] || msg.match[3];
       var response = msg.match[4];
 
       return add(term, response).then(function(responseObj) {
         msg.send(successMessage(responseObj));
-      }).fail(function(term) {
+      }).fail(function(err) {
         msg.send(failureMessage(term));
       });
     });
@@ -352,14 +350,14 @@ module.exports = function(robot) {
       var text = msg.message.text;
 
       if (!msg.message.isAddressedToBrobbot) {
-        var getResponse = get(text).then(function(response) {
+        var getResponse = getResponse(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
             return responseUsed(response);
           }
         });
 
-        return Q.all([getResponse, incrementMessageCount(), incrementTermCounts(text)]);
+        return Q.all([getResponse, incrementMessageCount()]);
       }
     });
   }
