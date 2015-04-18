@@ -24,7 +24,7 @@ var ngrams = natural.NGrams.ngrams;
 
 var STORE_SIZE = process.env.BROBBOT_REACT_STORE_SIZE ? parseInt(process.env.BROBBOT_REACT_STORE_SIZE) : 200;
 var THROTTLE_EXPIRATION = process.env.BROBBOT_REACT_THROTTLE_EXPIRATION ? parseInt(process.env.BROBBOT_REACT_THROTTLE_EXPIRATION) : 300;
-var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseInt(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 1;
+var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseFloat(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 2;
 
 var MESSAGE_TABLE = 'messages';
 var RESPONSE_USAGE_TABLE = 'response-usages';
@@ -194,21 +194,14 @@ module.exports = function(robot) {
   }
 
   function responseShouldBeThrottled(searchString) {
-    return robot.brain.get(responseUsageKey(searchString)).then(function(lastUsed) {
-      var timeoutExpired = lastUsed ? moment.utc(lastUsed).add(THROTTLE_EXPIRATION, 'seconds').isBefore() : true;
-      if (!timeoutExpired) {
-        return false;
-      }
-      else {
-        return Q.all([
-          robot.brain.get(termUsageKey(searchString)),
-          robot.brain.get(MESSAGE_COUNT_KEY)
-        ]).spread(function(termCount, totalCount) {
-          //TODO maths
-          return;
-        });
-      }
-    }, function() {
+    return Q.all([
+      robot.brain.get(responseUsageKey(searchString)),
+      robot.brain.get(termUsageKey(searchString)),
+      robot.brain.get(MESSAGE_COUNT_KEY)
+    ]).spread(function(lastUsed, termCount, totalCount) {
+      var multiplier = ((totalCount + termCount) / totalCount) * THROTTLE_FREQUENCY_MULTIPLIER;
+      return lastUsed ? moment.utc(lastUsed).add(Math.round(THROTTLE_EXPIRATION * multiplier), 'seconds').isAfter() : false;
+    }, function(err) {
       return false;
     });
   }
@@ -293,14 +286,12 @@ module.exports = function(robot) {
     return robot.brain.incrby(MESSAGE_COUNT_KEY, 1);
   }
 
-  function incrementTermCounts() {
-    //increment the count for relevant terms
-    //TODO only count terms for which there are responses?
-    //TODO keep set of terms with responses?
+  function incrementTermCounts(text) {
+    //increment the count for terms which have responses
     return search(text).then(function(termStrings) {
       return Q.all(_.map(termStrings, function(term) {
         return robot.brain.incrby(termUsageKey(term), 1);
-      });
+      }));
     });
   }
 
