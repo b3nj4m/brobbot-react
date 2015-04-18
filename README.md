@@ -19,7 +19,7 @@ It currently uses [natural](https://github.com/NaturalNode/natural)'s `PorterSte
 Responses to the same term will be throttled according to how often a message including the term is seen. Specifically, the throttle expiration time is proportional to the frequency of the term.
 
 ```
-timeToThrottle = ((totalMessageCount + termUsageCount) / totalMessageCount) * throttleMultiplier
+timeToThrottle = minimumThrottleTime * ((totalMessageCount + termUsageCount) / totalMessageCount) * throttleMultiplier
 ```
 
 ### Configuration
