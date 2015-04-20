@@ -1,6 +1,6 @@
 {
   "name": "brobbot-react",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "A module to train brobbot to react to certain terms",
   "main": "index.js",
   "scripts": {
