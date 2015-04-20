@@ -16,10 +16,10 @@ It currently uses [natural](https://github.com/NaturalNode/natural)'s `PorterSte
 
 ### Throttling
 
-Responses to the same term will be throttled according to how often a message including the term is seen. Specifically, the throttle expiration time is proportional to the frequency of the term.
+Responses to the same term will be throttled according to how often a message including the term is seen. Specifically, the throttle expiration time grows exponentially with the frequency of the term.
 
 ```
-timeToThrottle = minimumThrottleTime * ((totalMessageCount + termUsageCount) / totalMessageCount) * throttleMultiplier
+timeToThrottle = minimumThrottleTime * (throttleMultiplier ^ ((totalMessageCount + termUsageCount) / totalMessageCount) - (throttleMultiplier / 2))
 ```
 
 ### Configuration
@@ -34,7 +34,7 @@ BROBBOT_REACT_STORE_SIZE=N
 
 #### Throttle expiration
 
-Minimum time, `N`, to throttle responses to the same terms in seconds (default 300).
+Throttle responses to the same term for a minimum of `N` seconds (`minimumThrottleTime` above) (default 300).
 
 ```
 BROBBOT_REACT_THROTTLE_EXPIRATION=N
@@ -42,7 +42,7 @@ BROBBOT_REACT_THROTTLE_EXPIRATION=N
 
 #### Throttle frequency multiplier
 
-Multiplier used to tweak the computed throttle times (default 2).
+Multiplier used to tweak the computed throttle times (`throttleMultiplier` above) (default 10).
 
 ```
 BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER=N

@@ -9,7 +9,8 @@
 //
 // Configuration:
 //   BROBBOT_REACT_STORE_SIZE=N - Remember at most N messages (default 200).
-//   BROBBOT_REACT_THROTTLE_EXPIRATION=N - Throttle responses to the same terms for N seconds (default 300).
+//   BROBBOT_REACT_THROTTLE_EXPIRATION=N - Throttle responses to the same terms for a minimum of N seconds (default 300).
+//   BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER=N - Set the multiplier used in the frequency-based throttling calculation
 //
 // Author:
 //   b3nj4m
@@ -24,7 +25,8 @@ var ngrams = natural.NGrams.ngrams;
 
 var STORE_SIZE = process.env.BROBBOT_REACT_STORE_SIZE ? parseInt(process.env.BROBBOT_REACT_STORE_SIZE) : 200;
 var THROTTLE_EXPIRATION = process.env.BROBBOT_REACT_THROTTLE_EXPIRATION ? parseInt(process.env.BROBBOT_REACT_THROTTLE_EXPIRATION) : 300;
-var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseFloat(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 2;
+var THROTTLE_FREQUENCY_MULTIPLIER = process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER ? parseFloat(process.env.BROBBOT_REACT_THROTTLE_FREQUENCY_MULTIPLIER) : 10;
+var HALF_THROTTLE_FREQUENCY_MULTIPLIER = THROTTLE_FREQUENCY_MULTIPLIER / 2;
 
 var MESSAGE_TABLE = 'messages';
 var NO_STEM_MESSAGE_TABLE = 'no-stem-messages';
@@ -192,7 +194,11 @@ module.exports = function(robot) {
       robot.brain.get(termUsageKey(searchString)),
       robot.brain.get(MESSAGE_COUNT_KEY)
     ]).spread(function(lastUsed, termCount, totalCount) {
-      var multiplier = ((totalCount + termCount) / totalCount) * THROTTLE_FREQUENCY_MULTIPLIER;
+      totalCount = totalCount ? parseInt(totalCount) : 1;
+      termCount = termCount ? parseInt(termCount) : 0;
+
+      var multiplier = Math.pow(THROTTLE_FREQUENCY_MULTIPLIER, (totalCount + termCount) / totalCount) - HALF_THROTTLE_FREQUENCY_MULTIPLIER;
+
       return lastUsed ? moment.utc(lastUsed).add(Math.round(THROTTLE_EXPIRATION * multiplier), 'seconds').isAfter() : false;
     }, function(err) {
       return false;
