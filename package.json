@@ -19,7 +19,7 @@
     "url": "https://github.com/b3nj4m/brobbot-react/issues"
   },
   "peerDependencies": {
-    "brobbot": "4.x - 5.x"
+    "brobbot": "4.x - 6.x"
   },
   "dependencies": {
     "lodash": "~2.4.1",

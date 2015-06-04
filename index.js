@@ -282,6 +282,7 @@ module.exports = function(robot) {
     return robot.brain.srem(messageKey(response.stemsString), response);
   }
 
+  //TODO use message count rather than time
   function responseUsed(response) {
     lastUsedResponse = response;
     return robot.brain.set(responseUsageKey(response.stemsString), moment.utc().toISOString());
