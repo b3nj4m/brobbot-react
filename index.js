@@ -356,7 +356,7 @@ module.exports = function(robot) {
     robot.hear(/.+/, function(msg) {
       var text = msg.message.text;
 
-      if (!msg.message.isAddressedToBrobbot) {
+      if (!msg.message.isBrobbotCommand) {
         var get = getResponse(text).then(function(response) {
           if (response) {
             msg.send(responseToString(response));
