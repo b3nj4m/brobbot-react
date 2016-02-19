@@ -279,7 +279,10 @@ module.exports = function(robot) {
   }
 
   function del(response) {
-    return robot.brain.srem(messageKey(response.stemsString), response);
+    return Q.all([
+      robot.brain.srem(messageKey(response.stemsString), response),
+      robot.brain.srem(noStemMessageKey(response.stemsString), response)
+    ]);
   }
 
   //TODO use message count rather than time
